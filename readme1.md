@@ -706,14 +706,11 @@ function applyBloodColor(spo2) {
   });
 }
 
-/* ─── loop de renderização (único loop, sem duplicatas) ──── */
-let loopRunning = false;
+/* ─── loop de renderização ───────────────────────────────── */
 function startLoop() {
-  if (loopRunning) return;
-  loopRunning = true;
   function tick() {
     requestAnimationFrame(tick);
-    if (!pivot || !renderer) return;
+    if (!pivot) return;
     const now = performance.now();
     const sc = heartbeatScale(now, currentBpm);
     pivot.scale.setScalar(sc);
@@ -723,99 +720,64 @@ function startLoop() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   CÂMERA — com limpeza de stream anterior
+   CÂMERA
 ═══════════════════════════════════════════════════════════ */
-function stopCamera() {
-  /* para todas as tracks para liberar o hardware */
-  if (camEl.srcObject) {
-    camEl.srcObject.getTracks().forEach(t => t.stop());
-    camEl.srcObject = null;
-  }
-}
-
 async function startCamera() {
-  stopCamera(); /* garante que não há stream preso */
-
   const tries = [
-    { video: { facingMode: { exact: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+    { video: { facingMode: { exact: 'environment' } } },
     { video: { facingMode: 'environment' } },
     { video: true }
   ];
-
   for (const c of tries) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia(c);
       camEl.srcObject = stream;
-      /* câmera traseira: sem espelhamento */
-      const isRear = JSON.stringify(c).includes('environment');
-      camEl.style.transform = isRear ? 'none' : 'scaleX(-1)';
+      if (JSON.stringify(c).includes('environment')) camEl.style.transform = 'none';
       return true;
-    } catch(e) { /* tenta próxima opção */ }
+    } catch(e) { /* próxima opção */ }
   }
   return false;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   LOOP DE MOCK — 750ms (com limpeza de intervalo anterior)
+   LOOP DE MOCK — 750ms
 ═══════════════════════════════════════════════════════════ */
-let mockInterval = null;
-function stopMock() {
-  if (mockInterval) { clearInterval(mockInterval); mockInterval = null; }
-}
+let mockInterval;
 function startMock() {
-  stopMock();
   mockInterval = setInterval(() => {
     const data = sensor.tick();
     currentBpm = data.bpm;
     updateUI(data);
     stepEcg(data.bpm);
-    drawEcg(sensor.classifyBpm(data.bpm).color);
+    const ecgColor = sensor.classifyBpm(data.bpm).color;
+    drawEcg(ecgColor);
     if (pivot) applyBloodColor(data.spo2);
   }, 750);
 }
 
 /* ═══════════════════════════════════════════════════════════
-   BOTÃO ÚNICO — inicia tudo (robusto a múltiplos cliques)
+   BOTÃO ÚNICO — inicia tudo
 ═══════════════════════════════════════════════════════════ */
-let started = false;
-
 document.getElementById('btn-start').addEventListener('click', async () => {
-  if (started) return; /* evita dupla execução */
-  started = true;
-
   splash.classList.add('out');
   hud.classList.add('on');
   canvasEl.style.display = 'block';
   camEl.style.display    = 'block';
 
-  /* inicializa Three.js apenas uma vez */
-  if (!renderer) initThree();
+  initThree();
 
   const ok = await startCamera();
   if (!ok) {
-    toast('⚠ Câmera bloqueada — verifique as permissões');
-    started = false; /* permite tentar de novo */
+    toast('⚠ Câmera bloqueada. Permita o acesso.');
     return;
   }
 
-  /* função que dispara quando o vídeo está pronto para reprodução */
-  function onReady() {
-    camEl.removeEventListener('loadedmetadata', onReady);
-    camEl.removeEventListener('loadeddata',     onReady);
-    camEl.play().catch(() => {});
+  camEl.onloadedmetadata = () => {
+    camEl.play();
     toast('✦ Monitor ativo — sincronizando');
-    if (!pivot) loadModel(); /* carrega modelo só uma vez */
+    loadModel();
     startMock();
-  }
-
-  /* readyState >= 1 = metadados já disponíveis (cache/reconexão) */
-  if (camEl.readyState >= 1) {
-    onReady();
-  } else {
-    /* espera tanto loadedmetadata quanto loadeddata para garantir */
-    camEl.addEventListener('loadedmetadata', onReady, { once: true });
-    camEl.addEventListener('loadeddata',     onReady, { once: true });
-  }
+  };
 });
 
 /* ═══════════════════════════════════════════════════════════
@@ -870,18 +832,6 @@ canvasEl.addEventListener('touchmove', e=>{
     lp=d;
   }
 },{passive:true});
-
-/* ─── Reativa câmera ao voltar ao app (iOS/Android matam stream) ── */
-document.addEventListener('visibilitychange', async () => {
-  if (document.visibilityState !== 'visible' || !started) return;
-  const tracks = camEl.srcObject ? camEl.srcObject.getVideoTracks() : [];
-  const streamDead = tracks.length === 0 || tracks[0].readyState === 'ended';
-  if (streamDead) {
-    toast('↺ Reconectando câmera...');
-    const ok = await startCamera();
-    if (ok && camEl.readyState >= 1) camEl.play().catch(() => {});
-  }
-});
 </script>
 </body>
 </html>
