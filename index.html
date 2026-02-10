@@ -465,8 +465,7 @@
     style="display:none"
   >
     <a-assets>
-      <!-- Fallback geometry caso não haja arquivo .glb -->
-      <!-- Substitua pelo seu modelo: gltf-model="url(Globo.glb)" -->
+      <a-entity gltf-model="url(realistic_human_heart.glb)" scale="2.5 2.5 2.5"></a-entity>
     </a-assets>
 
     <!-- Câmera AR -->
@@ -474,9 +473,7 @@
 
     <!-- Objeto 3D — inicialmente invisível -->
     <a-entity id="ar-object" visible="false" position="0 0 -1.5">
-      <!-- ✦ Coloque aqui seu modelo .glb:
-           gltf-model="url(Globo.glb)"
-           e remova o grupo de formas abaixo -->
+      <a-entity gltf-model="url(realistic_human_heart.glb)" scale="2.5 2.5 2.5"></a-entity>
       <a-entity
         geometry="primitive: sphere; radius: 0.18"
         material="color: #00ffe0; metalness: 0.9; roughness: 0.1; emissive: #004040; emissiveIntensity: 0.4"
