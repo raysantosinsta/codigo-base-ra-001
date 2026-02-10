@@ -315,35 +315,6 @@
     }
     #alert-overlay.on { opacity:1; animation:alert-pulse .6s ease-in-out infinite alternate; }
     @keyframes alert-pulse { to { box-shadow:inset 0 0 100px rgba(255,45,85,.35); } }
-
-    /* ── User selector ───────────────────────────────────────── */
-    .user-item {
-      background: rgba(0,229,255,0.08);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 10px 14px;
-      cursor: pointer;
-      transition: all .18s ease;
-      text-align: left;
-    }
-    .user-item:hover,
-    .user-item.active {
-      background: rgba(0,229,255,0.16);
-      border-color: var(--cyan);
-      box-shadow: var(--glow-c);
-    }
-    .user-item.active {
-      background: rgba(0,255,136,0.12);
-      border-color: var(--green);
-    }
-    .user-name {
-      font-weight: 600;
-      color: #fff;
-    }
-    .user-info {
-      font-size: 11px;
-      color: rgba(255,255,255,0.6);
-    }
   </style>
 </head>
 <body>
@@ -402,17 +373,6 @@
     <div class="hud-logo">Cardio<span>AR</span></div>
     <div class="rec-badge"><div class="rec-dot"></div>SIMULADO</div>
     <div id="ts">--:--:--</div>
-  </div>
-
-  <!-- User Selector -->
-  <div id="user-selector" class="panel" style="
-    top: 16px; left: 50%; transform: translateX(-50%);
-    width: auto; min-width: 220px; max-width: 360px;
-    padding: 12px; text-align: center;
-    display: none;
-  ">
-    <div class="p-label" style="margin-bottom:8px;">Selecione o usuário</div>
-    <div id="user-list" style="display:flex; flex-direction:column; gap:8px;"></div>
   </div>
 
   <!-- Painel BPM -->
@@ -483,99 +443,57 @@ function toast(msg, dur=2500){
   toastTimer=setTimeout(()=>toastEl.classList.remove('show'),dur);
 }
 
-/* ── Usuários mockados ─────────────────────────────────────── */
-const users = [
-  {
-    id: "u1",
-    nome: "Ana Clara",
-    idade: 28,
-    avatar: "https://i.pravatar.cc/80?img=1", // opcional
-    baseBpm: 68,
-    baseSpo2: 97.5,
-  },
-  {
-    id: "u2",
-    nome: "João Pedro",
-    idade: 34,
-    avatar: "https://i.pravatar.cc/80?img=68",
-    baseBpm: 74,
-    baseSpo2: 96.2,
-  },
-  {
-    id: "u3",
-    nome: "Mariana Lopes",
-    idade: 19,
-    avatar: "https://i.pravatar.cc/80?img=44",
-    baseBpm: 82,
-    baseSpo2: 98.1,
-  },
-  {
-    id: "u4",
-    nome: "Carlos Mendes",
-    idade: 45,
-    avatar: "https://i.pravatar.cc/80?img=33",
-    baseBpm: 62,
-    baseSpo2: 95.8,
-  }
-];
-
-let activeUserId = null;
-let activeUser = null;
-
 /* ═══════════════════════════════════════════════════════════
-   MOCK ENGINE — sensor simulado por usuário
+   MOCK ENGINE — sensor simulado
 ═══════════════════════════════════════════════════════════ */
-function createUserSensor(user) {
-  return {
-    userId: user.id,
-    nome: user.nome,
-    bpm: user.baseBpm,
-    spo2: user.baseSpo2,
-    ts: Date.now() / 1000 | 0,
+const sensor = {
+  bpm:  70,
+  spo2: 98,
+  ts:   Date.now(),
 
-    BPM_MIN: 38,  BPM_MAX: 145,
-    SPO2_MIN: 80, SPO2_MAX: 100,
+  /* limites fisiológicos */
+  BPM_MIN: 40, BPM_MAX: 130,
+  SPO2_MIN: 82, SPO2_MAX: 100,
 
-    bpmDrift: 0,
-    spo2Drift: 0,
+  /* variação por ciclo */
+  bpmDrift:  0,
+  spo2Drift: 0,
 
-    tick() {
-      const now = Date.now() / 1000 | 0;
-      this.ts = now;
+  tick() {
+    const now = Date.now();
+    this.ts = Math.floor(now / 1000);
 
-      // BPM — caminhada aleatória centrada no baseline do usuário
-      this.bpmDrift  += (Math.random()-0.5) * 1.4;
-      this.bpmDrift   = Math.max(-4.5, Math.min(4.5, this.bpmDrift));
-      this.bpm       += this.bpmDrift + (Math.random()-0.5)*1.1;
-      this.bpm        = Math.max(this.BPM_MIN, Math.min(this.BPM_MAX, this.bpm));
+    /* BPM — caminhada aleatória suave */
+    this.bpmDrift  += (Math.random()-.5) * 1.2;
+    this.bpmDrift   = Math.max(-3, Math.min(3, this.bpmDrift));
+    this.bpm       += this.bpmDrift + (Math.random()-.5)*.8;
+    this.bpm        = Math.max(this.BPM_MIN, Math.min(this.BPM_MAX, this.bpm));
 
-      // SpO₂ — mais estável
-      this.spo2Drift += (Math.random()-0.5) * 0.35;
-      this.spo2Drift  = Math.max(-0.8, Math.min(0.8, this.spo2Drift));
-      this.spo2      += this.spo2Drift + (Math.random()-0.5)*0.25;
-      this.spo2       = Math.max(this.SPO2_MIN, Math.min(this.SPO2_MAX, this.spo2));
+    /* SpO2 — deriva mais lenta */
+    this.spo2Drift += (Math.random()-.5) * .3;
+    this.spo2Drift  = Math.max(-.6, Math.min(.6, this.spo2Drift));
+    this.spo2      += this.spo2Drift + (Math.random()-.5)*.2;
+    this.spo2       = Math.max(this.SPO2_MIN, Math.min(this.SPO2_MAX, this.spo2));
 
-      return {
-        userId: this.userId,
-        nome: this.nome,
-        timestamp: this.ts,
-        bpm: Math.round(this.bpm),
-        spo2: parseFloat(this.spo2.toFixed(1))
-      };
-    },
+    return {
+      timestamp: this.ts,
+      bpm:  Math.round(this.bpm),
+      spo2: parseFloat(this.spo2.toFixed(1))
+    };
+  },
 
-    classifyBpm(v) {
-      if (v < 60)  return { label:'BAIXO',  color:'#ffd60a', state:'warn' };
-      if (v > 100) return { label:'ALTO',   color:'#ff9500', state:'warn' };
-      return            { label:'NORMAL',  color:'#00ff88', state:'ok'   };
-    },
-    classifySpo2(v) {
-      if (v < 90)  return { label:'CRÍTICO', color:'#ff2d55', state:'crit' };
-      if (v < 95)  return { label:'ALERTA',  color:'#ffd60a', state:'warn' };
-      return            { label:'NORMAL',   color:'#00ff88', state:'ok'   };
-    }
-  };
-}
+  /* classificação de status */
+  classifyBpm(v) {
+    if (v < 60)  return { label:'BAIXO',  color:'#ffd60a', state:'warn' };
+    if (v > 100) return { label:'ALTO',   color:'#ff9500', state:'warn' };
+    return            { label:'NORMAL',  color:'#00ff88', state:'ok'   };
+  },
+  classifySpo2(v) {
+    if (v < 90)  return { label:'CRÍTICO', color:'#ff2d55', state:'crit' };
+    if (v < 95)  return { label:'ALERTA',  color:'#ffd60a', state:'warn' };
+    return            { label:'NORMAL',   color:'#00ff88', state:'ok'   };
+  }
+};
 
 /* ═══════════════════════════════════════════════════════════
    MINI ECG — canvas simples
@@ -626,8 +544,8 @@ function stepEcg(bpm) {
 ═══════════════════════════════════════════════════════════ */
 function updateUI(data) {
   const { bpm, spo2 } = data;
-  const cb = currentSensor.classifyBpm(bpm);
-  const cs = currentSensor.classifySpo2(spo2);
+  const cb = sensor.classifyBpm(bpm);
+  const cs = sensor.classifySpo2(spo2);
 
   /* timestamp */
   const d = new Date(data.timestamp * 1000);
@@ -838,65 +756,22 @@ async function startCamera() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   LOOP DE MOCK — 800ms (com limpeza de intervalo anterior)
+   LOOP DE MOCK — 750ms (com limpeza de intervalo anterior)
 ═══════════════════════════════════════════════════════════ */
-let currentSensor = null;
 let mockInterval = null;
-
-function stopCurrentSimulation() {
-  if (mockInterval) {
-    clearInterval(mockInterval);
-    mockInterval = null;
-  }
-  currentSensor = null;
+function stopMock() {
+  if (mockInterval) { clearInterval(mockInterval); mockInterval = null; }
 }
-
-function startSimulationForUser(user) {
-  stopCurrentSimulation();
-
-  currentSensor = createUserSensor(user);
-  activeUser = user;
-  activeUserId = user.id;
-
-  // Atualiza nome na interface
-  document.getElementById('sim-label').textContent = `Usuário: ${user.nome}`;
-
+function startMock() {
+  stopMock();
   mockInterval = setInterval(() => {
-    if (!currentSensor) return;
-    const data = currentSensor.tick();
+    const data = sensor.tick();
     currentBpm = data.bpm;
     updateUI(data);
     stepEcg(data.bpm);
-    drawEcg(currentSensor.classifyBpm(data.bpm).color);
+    drawEcg(sensor.classifyBpm(data.bpm).color);
     if (pivot) applyBloodColor(data.spo2);
-  }, 800);
-}
-
-/* ═══════════════════════════════════════════════════════════
-   RENDER LISTA DE USUÁRIOS
-═══════════════════════════════════════════════════════════ */
-function renderUserList() {
-  const container = document.getElementById('user-list');
-  if (!container) return;
-
-  container.innerHTML = '';
-  users.forEach(user => {
-    const item = document.createElement('div');
-    item.className = 'user-item';
-    item.innerHTML = `
-      <div class="user-name">${user.nome}</div>
-      <div class="user-info">${user.idade} anos • Base: ${user.baseBpm} bpm</div>
-    `;
-    item.addEventListener('click', () => {
-      // remove active de todos
-      document.querySelectorAll('.user-item').forEach(el => el.classList.remove('active'));
-      item.classList.add('active');
-
-      startSimulationForUser(user);
-      toast(`Monitorando: ${user.nome}`);
-    });
-    container.appendChild(item);
-  });
+  }, 750);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -930,16 +805,7 @@ document.getElementById('btn-start').addEventListener('click', async () => {
     camEl.play().catch(() => {});
     toast('✦ Monitor ativo — sincronizando');
     if (!pivot) loadModel(); /* carrega modelo só uma vez */
-
-    // Mostra seletor de usuários
-    document.getElementById('user-selector').style.display = 'block';
-    renderUserList();
-
-    // Seleciona o primeiro usuário automaticamente
-    if (users.length > 0) {
-      startSimulationForUser(users[0]);
-      document.querySelector('.user-item')?.classList.add('active');
-    }
+    startMock();
   }
 
   /* readyState >= 1 = metadados já disponíveis (cache/reconexão) */
