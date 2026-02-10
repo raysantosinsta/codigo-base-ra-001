@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
-  <title>CardioAR · Monitor Clínico</title>
+  <title>CardioAR · Monitor</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <style>
@@ -23,7 +23,6 @@
       --glow-c: 0 0 12px rgba(0,229,255,0.4);
       --glow-r: 0 0 14px rgba(255,45,85,0.5);
       --glow-g: 0 0 12px rgba(0,255,136,0.4);
-      --glow-y: 0 0 12px rgba(255,214,10,0.5);
     }
 
     html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family:'Barlow',sans-serif; }
@@ -317,44 +316,34 @@
     #alert-overlay.on { opacity:1; animation:alert-pulse .6s ease-in-out infinite alternate; }
     @keyframes alert-pulse { to { box-shadow:inset 0 0 100px rgba(255,45,85,.35); } }
 
-    /* ── Adições novas ───────────────────────────────────────── */
-    #detail-overlay {
-      position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:9995; display:none;
-      align-items:center; justify-content:center; pointer-events:auto;
+    /* ── User selector ───────────────────────────────────────── */
+    .user-item {
+      background: rgba(0,229,255,0.08);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: all .18s ease;
+      text-align: left;
     }
-    .detail-card {
-      background:var(--panel); border:1px solid var(--border); backdrop-filter:blur(14px);
-      border-radius:8px; padding:24px; max-width:360px; text-align:center; color:#fff;
+    .user-item:hover,
+    .user-item.active {
+      background: rgba(0,229,255,0.16);
+      border-color: var(--cyan);
+      box-shadow: var(--glow-c);
     }
-    .status-icon { font-size:48px; margin:16px 0; }
-
-    #history-chart { width:100%; height:80px; margin-top:8px; }
-
-    .layer-btn {
-      background:rgba(4,8,16,.7); border:1px solid var(--border); color:var(--cyan);
-      padding:8px 12px; border-radius:4px; cursor:pointer; font-size:11px; margin:0 4px;
+    .user-item.active {
+      background: rgba(0,255,136,0.12);
+      border-color: var(--green);
     }
-    .layer-btn.active { background:var(--cyan); color:var(--dark); }
-
-    .alert-icon {
-      position:fixed; top:100px; left:50%; transform:translateX(-50%);
-      font-size:80px; opacity:0; pointer-events:none; z-index:9992;
-      animation: alertPop 1.2s ease-out forwards;
+    .user-name {
+      font-weight: 600;
+      color: #fff;
     }
-    @keyframes alertPop { 0%{opacity:0; transform:translateX(-50%) scale(0.5)} 20%{opacity:1; transform:translateX(-50%) scale(1.15)} 100%{opacity:0; transform:translateX(-50%) scale(1)} }
-
-    .vibrate { animation: vibrate 0.4s linear infinite alternate; }
-    @keyframes vibrate { from { transform: translate(0,0) rotate(0deg); } to { transform: translate(1px,1px) rotate(0.5deg); } }
-
-    .halo-red { box-shadow: 0 0 40px var(--red), inset 0 0 30px var(--red); animation: haloPulse 1.8s infinite alternate; }
-    @keyframes haloPulse { to { box-shadow: 0 0 80px var(--red), inset 0 0 50px var(--red); } }
-
-    .user-item { display:flex; justify-content:space-between; align-items:center; }
-    .priority-dot { width:12px; height:12px; border-radius:50%; margin-right:8px; }
-
-    /* Mini gráfico histórico */
-    .mini-chart { margin-top:8px; height:50px; overflow:hidden; }
-    .mini-chart canvas { width:100%; height:50px; }
+    .user-info {
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+    }
   </style>
 </head>
 <body>
@@ -367,20 +356,6 @@
 
 <!-- Alerta crítico -->
 <div id="alert-overlay"></div>
-
-<!-- Overlay de detalhes -->
-<div id="detail-overlay">
-  <div class="detail-card">
-    <h2 id="detail-name">--</h2>
-    <div class="status-icon" id="detail-status">🟢</div>
-    <div>BPM: <span id="detail-bpm">--</span> <span id="detail-bpm-delta"></span></div>
-    <div>SpO₂: <span id="detail-spo2">--</span> <span id="detail-spo2-delta"></span></div>
-    <div id="detail-trend">Tendência: —</div>
-    <div>Observações: <textarea id="detail-notes" placeholder="Adicionar nota..."></textarea></div>
-    <button id="save-note" style="margin-top:10px;">Salvar Nota</button>
-    <button onclick="document.getElementById('detail-overlay').style.display='none'">Fechar</button>
-  </div>
-</div>
 
 <!-- ═══ SPLASH ════════════════════════════════════════════════ -->
 <div id="splash">
@@ -436,7 +411,7 @@
     padding: 12px; text-align: center;
     display: none;
   ">
-    <div class="p-label" style="margin-bottom:8px;">Selecione o Paciente</div>
+    <div class="p-label" style="margin-bottom:8px;">Selecione o usuário</div>
     <div id="user-list" style="display:flex; flex-direction:column; gap:8px;"></div>
   </div>
 
@@ -447,7 +422,6 @@
     <div class="p-unit">BPM</div>
     <div class="p-status" id="st-bpm">—</div>
     <div class="mini-ecg"><canvas id="ecg-canvas" height="36"></canvas></div>
-    <div class="mini-chart"><canvas id="history-canvas" height="50"></canvas></div>
   </div>
 
   <!-- Painel SpO2 -->
@@ -469,11 +443,6 @@
       <button class="cbtn" id="btn-plus"  title="Aproximar">+</button>
     </div>
     <div id="sim-label">⚠ DADOS SIMULADOS</div>
-    <div class="ctrl-group">
-      <button class="layer-btn active" id="toggle-numbers">Números</button>
-      <button class="layer-btn active" id="toggle-color">Cor O₂</button>
-      <button class="layer-btn active" id="toggle-history">Histórico</button>
-    </div>
     <button id="btn-reset-hud">↺ Reset</button>
   </div>
 </div>
@@ -505,23 +474,6 @@ const valSpo2   = document.getElementById('val-spo2');
 const stSpo2    = document.getElementById('st-spo2');
 const spo2Bar   = document.getElementById('spo2-bar');
 const ecgCanvas = document.getElementById('ecg-canvas');
-const historyCanvas = document.getElementById('history-canvas');
-
-/* ── Detalhes overlay ────────────────────────────────────── */
-const detailOverlay = document.getElementById('detail-overlay');
-const detailName = document.getElementById('detail-name');
-const detailStatus = document.getElementById('detail-status');
-const detailBpm = document.getElementById('detail-bpm');
-const detailBpmDelta = document.getElementById('detail-bpm-delta');
-const detailSpo2 = document.getElementById('detail-spo2');
-const detailSpo2Delta = document.getElementById('detail-spo2-delta');
-const detailTrend = document.getElementById('detail-trend');
-const detailNotes = document.getElementById('detail-notes');
-
-/* ── Camadas ──────────────────────────────────────────────── */
-let showNumbers = true;
-let showColor = true;
-let showHistory = true;
 
 /* ── Toast ─────────────────────────────────────────────────── */
 let toastTimer;
@@ -537,11 +489,9 @@ const users = [
     id: "u1",
     nome: "Ana Clara",
     idade: 28,
-    avatar: "https://i.pravatar.cc/80?img=1",
+    avatar: "https://i.pravatar.cc/80?img=1", // opcional
     baseBpm: 68,
     baseSpo2: 97.5,
-    notes: "",
-    history: []
   },
   {
     id: "u2",
@@ -550,8 +500,6 @@ const users = [
     avatar: "https://i.pravatar.cc/80?img=68",
     baseBpm: 74,
     baseSpo2: 96.2,
-    notes: "",
-    history: []
   },
   {
     id: "u3",
@@ -560,8 +508,6 @@ const users = [
     avatar: "https://i.pravatar.cc/80?img=44",
     baseBpm: 82,
     baseSpo2: 98.1,
-    notes: "",
-    history: []
   },
   {
     id: "u4",
@@ -570,8 +516,6 @@ const users = [
     avatar: "https://i.pravatar.cc/80?img=33",
     baseBpm: 62,
     baseSpo2: 95.8,
-    notes: "",
-    history: []
   }
 ];
 
@@ -599,29 +543,25 @@ function createUserSensor(user) {
       const now = Date.now() / 1000 | 0;
       this.ts = now;
 
+      // BPM — caminhada aleatória centrada no baseline do usuário
       this.bpmDrift  += (Math.random()-0.5) * 1.4;
       this.bpmDrift   = Math.max(-4.5, Math.min(4.5, this.bpmDrift));
       this.bpm       += this.bpmDrift + (Math.random()-0.5)*1.1;
       this.bpm        = Math.max(this.BPM_MIN, Math.min(this.BPM_MAX, this.bpm));
 
+      // SpO₂ — mais estável
       this.spo2Drift += (Math.random()-0.5) * 0.35;
       this.spo2Drift  = Math.max(-0.8, Math.min(0.8, this.spo2Drift));
       this.spo2      += this.spo2Drift + (Math.random()-0.5)*0.25;
       this.spo2       = Math.max(this.SPO2_MIN, Math.min(this.SPO2_MAX, this.spo2));
 
-      const data = {
+      return {
         userId: this.userId,
         nome: this.nome,
         timestamp: this.ts,
         bpm: Math.round(this.bpm),
         spo2: parseFloat(this.spo2.toFixed(1))
       };
-
-      // Salvar histórico (máx 40 pontos, ~5 min a 8s/ponto)
-      user.history.push(data);
-      if (user.history.length > 40) user.history.shift();
-
-      return data;
     },
 
     classifyBpm(v) {
@@ -633,28 +573,12 @@ function createUserSensor(user) {
       if (v < 90)  return { label:'CRÍTICO', color:'#ff2d55', state:'crit' };
       if (v < 95)  return { label:'ALERTA',  color:'#ffd60a', state:'warn' };
       return            { label:'NORMAL',   color:'#00ff88', state:'ok'   };
-    },
-
-    getVitalStatus(bpm, spo2) {
-      let bpmState = 'ok', spo2State = 'ok', overall = 'ok';
-      let bpmColor = '--green';
-      let spo2Color = '--green';
-
-      // BPM
-      if (bpm < 50 || bpm > 120) { bpmState = 'crit'; bpmColor = '--red'; overall = 'crit'; }
-      else if (bpm < 60 || bpm > 100) { bpmState = 'warn'; bpmColor = '--yellow'; if (overall !== 'crit') overall = 'warn'; }
-
-      // SpO2
-      if (spo2 < 92) { spo2State = 'crit'; spo2Color = '--red'; overall = 'crit'; }
-      else if (spo2 < 95) { spo2State = 'warn'; spo2Color = '--yellow'; if (overall !== 'crit') overall = 'warn'; }
-
-      return { overall, bpmState, spo2State, bpmColor, spo2Color };
     }
   };
 }
 
 /* ═══════════════════════════════════════════════════════════
-   MINI ECG
+   MINI ECG — canvas simples
 ═══════════════════════════════════════════════════════════ */
 const ECG_W = 200, ECG_H = 36;
 ecgCanvas.width  = ECG_W;
@@ -665,6 +589,7 @@ const ecgBuffer = new Array(ECG_W).fill(ECG_H/2);
 let ecgPhase = 0;
 
 function ecgWaveform(phase) {
+  /* simula onda PQRST simplificada */
   const t = phase % 1;
   if (t < .1)  return ECG_H/2;
   if (t < .15) return ECG_H/2 - (t-.1)/.05 * 4;
@@ -690,51 +615,10 @@ function drawEcg(color='#ff2d55') {
 }
 
 function stepEcg(bpm) {
-  const speed = bpm / 60 / 30;
+  const speed = bpm / 60 / 30; /* avança mais rápido com BPM maior */
   ecgPhase += speed;
   ecgBuffer.shift();
   ecgBuffer.push(ecgWaveform(ecgPhase));
-}
-
-/* ═══════════════════════════════════════════════════════════
-   MINI GRÁFICO HISTÓRICO
-═══════════════════════════════════════════════════════════ */
-const HIST_W = 130, HIST_H = 50;
-historyCanvas.width = HIST_W * 2; // para retina
-historyCanvas.height = HIST_H * 2;
-historyCanvas.style.width = HIST_W + 'px';
-historyCanvas.style.height = HIST_H + 'px';
-const hctx = historyCanvas.getContext('2d');
-
-function drawHistory(history) {
-  if (!showHistory || history.length < 2) return;
-  hctx.clearRect(0, 0, historyCanvas.width, historyCanvas.height);
-  hctx.scale(2,2);
-
-  // BPM linha (normalizado 40-140 para 0-50)
-  hctx.beginPath();
-  hctx.strokeStyle = '#ff2d55';
-  hctx.lineWidth = 1.5;
-  history.forEach((d, i) => {
-    const x = (i / (history.length - 1)) * HIST_W;
-    const y = HIST_H - ((d.bpm - 40) / 100 * HIST_H);
-    if (i === 0) hctx.moveTo(x, y);
-    else hctx.lineTo(x, y);
-  });
-  hctx.stroke();
-
-  // SpO2 linha (normalizado 80-100 para 0-50)
-  hctx.beginPath();
-  hctx.strokeStyle = '#00e5ff';
-  history.forEach((d, i) => {
-    const x = (i / (history.length - 1)) * HIST_W;
-    const y = HIST_H - ((d.spo2 - 80) / 20 * HIST_H);
-    if (i === 0) hctx.moveTo(x, y);
-    else hctx.lineTo(x, y);
-  });
-  hctx.stroke();
-
-  hctx.setTransform(1,0,0,1,0,0);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -744,55 +628,41 @@ function updateUI(data) {
   const { bpm, spo2 } = data;
   const cb = currentSensor.classifyBpm(bpm);
   const cs = currentSensor.classifySpo2(spo2);
-  const status = currentSensor.getVitalStatus(bpm, spo2);
 
   /* timestamp */
   const d = new Date(data.timestamp * 1000);
   tsEl.textContent = d.toLocaleTimeString('pt-BR');
 
-  if (showNumbers) {
-    /* BPM */
-    valBpm.innerHTML = bpm + ` <small style="font-size:20px; color:${(bpm - activeUser.baseBpm > 0 ? 'var(--red)' : 'var(--green)')};">${(bpm - activeUser.baseBpm > 0 ? '+' : '') + (bpm - activeUser.baseBpm).toFixed(0)}</small>`;
-    valBpm.style.color = cb.color;
-    valBpm.style.textShadow = `0 0 16px ${cb.color}88`;
-    stBpm.textContent  = cb.label;
-    stBpm.style.color  = cb.color;
-    stBpm.style.background = cb.color + '22';
-    stBpm.style.border = `1px solid ${cb.color}44`;
+  /* BPM */
+  valBpm.textContent = bpm;
+  valBpm.style.color = cb.color;
+  valBpm.style.textShadow = `0 0 16px ${cb.color}88`;
+  stBpm.textContent  = cb.label;
+  stBpm.style.color  = cb.color;
+  stBpm.style.background = cb.color + '22';
+  stBpm.style.borderColor = cb.color + '44';
+  stBpm.style.border = `1px solid ${cb.color}44`;
 
-    /* SpO2 */
-    valSpo2.innerHTML = spo2.toFixed(1) + ` <small style="font-size:20px; color:${(spo2 - activeUser.baseSpo2 > 0 ? 'var(--red)' : 'var(--green)')};">${(spo2 - activeUser.baseSpo2 > 0 ? '+' : '') + (spo2 - activeUser.baseSpo2).toFixed(1)}</small>`;
-    valSpo2.style.color = cs.color;
-    valSpo2.style.textShadow = `0 0 16px ${cs.color}88`;
-    stSpo2.textContent  = cs.label;
-    stSpo2.style.color  = cs.color;
-    stSpo2.style.background = cs.color + '22';
-    stSpo2.style.border = `1px solid ${cs.color}44`;
+  /* SpO2 */
+  valSpo2.textContent = spo2.toFixed(1);
+  valSpo2.style.color = cs.color;
+  valSpo2.style.textShadow = `0 0 16px ${cs.color}88`;
+  stSpo2.textContent  = cs.label;
+  stSpo2.style.color  = cs.color;
+  stSpo2.style.background = cs.color + '22';
+  stSpo2.style.border = `1px solid ${cs.color}44`;
 
-    /* barra SpO2 */
-    const barPct = Math.max(0, Math.min(100, (spo2 - 80) / 20 * 100));
-    spo2Bar.style.width = barPct + '%';
-    spo2Bar.style.background = cs.color;
-  } else {
-    valBpm.textContent = '--';
-    valSpo2.textContent = '--';
-    spo2Bar.style.width = '0%';
-  }
+  /* barra SpO2: mapeia 80–100 → 0–100% */
+  const barPct = Math.max(0, Math.min(100, (spo2 - 80) / 20 * 100));
+  spo2Bar.style.width = barPct + '%';
+  spo2Bar.style.background = cs.color;
 
-  /* alerta crítico */
-  if (status.overall === 'crit') {
+  /* alerta crítico na borda */
+  if (cs.state === 'crit' || cb.state === 'crit') {
     alertEl.classList.add('on');
-    const icon = document.createElement('div');
-    icon.className = 'alert-icon';
-    icon.textContent = '⚠️';
-    document.body.appendChild(icon);
-    setTimeout(() => icon.remove(), 1500);
   } else {
     alertEl.classList.remove('on');
   }
-
-  /* histórico */
-  if (showHistory) drawHistory(activeUser.history);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -801,20 +671,21 @@ function updateUI(data) {
 let renderer, scene, threeCamera, pivot;
 let modelLoaded = false;
 let lastBeat = 0;
-let beatDur  = 0;
+let beatDur  = 0; /* ms por batimento */
 let currentBpm = 70;
 
 function initThree() {
   renderer = new THREE.WebGLRenderer({ canvas: canvasEl, alpha: true, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
   renderer.setClearColor(0x000000, 0);
 
   scene = new THREE.Scene();
 
-  threeCamera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.01, 100);
+  threeCamera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.01, 100);
   threeCamera.position.set(0, 0, 0);
 
+  /* Luzes */
   scene.add(new THREE.AmbientLight(0xffffff, 0.6));
   const d1 = new THREE.DirectionalLight(0xff4466, 1.4);
   d1.position.set(2,3,3); scene.add(d1);
@@ -822,9 +693,9 @@ function initThree() {
   d2.position.set(-2,-1,-1); scene.add(d2);
 
   window.addEventListener('resize', () => {
-    threeCamera.aspect = window.innerWidth/window.innerHeight;
+    threeCamera.aspect = innerWidth/innerHeight;
     threeCamera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(innerWidth, innerHeight);
   });
 }
 
@@ -837,6 +708,7 @@ function loadModel() {
       loaderEl.classList.remove('on');
       const model = gltf.scene;
 
+      /* auto-escala */
       const box  = new THREE.Box3().setFromObject(model);
       const size = new THREE.Vector3();
       box.getSize(size);
@@ -867,6 +739,7 @@ function loadModel() {
 function useFallback() {
   pivot = new THREE.Group();
 
+  /* coração simplificado com esferas */
   const mat = new THREE.MeshStandardMaterial({ color:0xcc2244, metalness:.3, roughness:.6, emissive:0x440011, emissiveIntensity:.4 });
   const s1 = new THREE.Mesh(new THREE.SphereGeometry(.14,16,16), mat);
   s1.position.set(-.08,.06,0);
@@ -883,39 +756,26 @@ function useFallback() {
 }
 
 /* ─── pulsação sincronizada com BPM ─────────────────────── */
-function heartbeatScale(now, bpm, status) {
-  beatDur = 60000 / bpm;
+function heartbeatScale(now, bpm) {
+  beatDur = 60000 / bpm; /* ms por batimento */
   const phase = ((now - lastBeat) % beatDur) / beatDur;
-  let intensity = 0.12 + Math.min(0.06, (Math.abs(bpm - 80) / 40 * 0.06)); // mais forte se alto/baixo
+  /* sístole rápida (0–20%) depois diástole (20–100%) */
   let scale;
   if (phase < .2) {
-    scale = 1 + Math.sin(phase/.2 * Math.PI) * intensity;
+    scale = 1 + Math.sin(phase/.2 * Math.PI) * .12;
   } else {
-    scale = 1 + Math.sin((phase-.2)/.8 * Math.PI) * 0.03;
+    scale = 1 + Math.sin((phase-.2)/.8 * Math.PI) * .03;
   }
-
-  // Vibração se crítico
-  if (status.overall === 'crit') {
-    pivot.rotation.x = Math.sin(now * 0.01) * 0.01;
-    pivot.rotation.y = Math.cos(now * 0.01) * 0.01;
-    pivot.className = 'halo-red vibrate'; // CSS classes para halo e vibrate
-  } else {
-    pivot.rotation.x = pivot.rotation.y = 0;
-    pivot.className = '';
-  }
-
   return scale;
 }
 
 /* ─── cor do modelo por SpO2 ─────────────────────────────── */
 let lastSpo2Color = null;
 function applyBloodColor(spo2) {
-  if (!showColor) return;
   let hex;
-  let darkness = (100 - spo2) / 30 * 0.5; // 0-0.5
-  if (spo2 >= 95) hex = 0xcc2244;
-  else if (spo2 >= 92) hex = 0xaa3322;
-  else hex = 0x552244;
+  if      (spo2 >= 95) hex = 0xcc2244; /* vermelho vivo — normal */
+  else if (spo2 >= 90) hex = 0xaa3322; /* alaranjado — alerta */
+  else                 hex = 0x552244; /* roxo escuro — crítico */
 
   if (hex === lastSpo2Color) return;
   lastSpo2Color = hex;
@@ -923,12 +783,12 @@ function applyBloodColor(spo2) {
   pivot.traverse(obj => {
     if (obj.isMesh) {
       obj.material.color.setHex(hex);
-      obj.material.emissive.setHex((hex >> 2) * (1 - darkness));
+      obj.material.emissive.setHex(hex >> 2);
     }
   });
 }
 
-/* ─── loop de renderização ───────────────────────────────── */
+/* ─── loop de renderização (único loop, sem duplicatas) ──── */
 let loopRunning = false;
 function startLoop() {
   if (loopRunning) return;
@@ -937,8 +797,7 @@ function startLoop() {
     requestAnimationFrame(tick);
     if (!pivot || !renderer) return;
     const now = performance.now();
-    const status = currentSensor ? currentSensor.getVitalStatus(currentBpm, activeUser.history.at(-1)?.spo2 || 98) : {overall: 'ok'};
-    const sc = heartbeatScale(now, currentBpm, status);
+    const sc = heartbeatScale(now, currentBpm);
     pivot.scale.setScalar(sc);
     renderer.render(scene, threeCamera);
   }
@@ -946,9 +805,10 @@ function startLoop() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   CÂMERA
+   CÂMERA — com limpeza de stream anterior
 ═══════════════════════════════════════════════════════════ */
 function stopCamera() {
+  /* para todas as tracks para liberar o hardware */
   if (camEl.srcObject) {
     camEl.srcObject.getTracks().forEach(t => t.stop());
     camEl.srcObject = null;
@@ -956,7 +816,7 @@ function stopCamera() {
 }
 
 async function startCamera() {
-  stopCamera();
+  stopCamera(); /* garante que não há stream preso */
 
   const tries = [
     { video: { facingMode: { exact: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
@@ -968,16 +828,17 @@ async function startCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia(c);
       camEl.srcObject = stream;
+      /* câmera traseira: sem espelhamento */
       const isRear = JSON.stringify(c).includes('environment');
       camEl.style.transform = isRear ? 'none' : 'scaleX(-1)';
       return true;
-    } catch(e) {}
+    } catch(e) { /* tenta próxima opção */ }
   }
   return false;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   SIMULAÇÃO
+   LOOP DE MOCK — 800ms (com limpeza de intervalo anterior)
 ═══════════════════════════════════════════════════════════ */
 let currentSensor = null;
 let mockInterval = null;
@@ -997,7 +858,8 @@ function startSimulationForUser(user) {
   activeUser = user;
   activeUserId = user.id;
 
-  document.getElementById('sim-label').textContent = `Paciente: ${user.nome}`;
+  // Atualiza nome na interface
+  document.getElementById('sim-label').textContent = `Usuário: ${user.nome}`;
 
   mockInterval = setInterval(() => {
     if (!currentSensor) return;
@@ -1007,48 +869,29 @@ function startSimulationForUser(user) {
     stepEcg(data.bpm);
     drawEcg(currentSensor.classifyBpm(data.bpm).color);
     if (pivot) applyBloodColor(data.spo2);
-    drawHistory(user.history);
-    renderUserList(); // Atualiza prioridade na lista
   }, 800);
 }
 
 /* ═══════════════════════════════════════════════════════════
-   RENDER LISTA DE PACIENTES
+   RENDER LISTA DE USUÁRIOS
 ═══════════════════════════════════════════════════════════ */
 function renderUserList() {
   const container = document.getElementById('user-list');
   if (!container) return;
 
   container.innerHTML = '';
-
-  // Ordenar por gravidade
-  const sorted = [...users].sort((a,b) => {
-    const sa = a.history.length ? currentSensor.getVitalStatus(a.history.at(-1).bpm, a.history.at(-1).spo2).overall : 'ok';
-    const sb = b.history.length ? currentSensor.getVitalStatus(b.history.at(-1).bpm, b.history.at(-1).spo2).overall : 'ok';
-    const order = { crit: 0, warn: 1, ok: 2 };
-    return order[sa] - order[sb];
-  });
-
-  sorted.forEach(user => {
-    const last = user.history.at(-1);
-    const status = last ? currentSensor.getVitalStatus(last.bpm, last.spo2).overall : 'ok';
-    const color = status === 'crit' ? 'var(--red)' : status === 'warn' ? 'var(--yellow)' : 'var(--green)';
-
+  users.forEach(user => {
     const item = document.createElement('div');
-    item.className = 'user-item' + (user.id === activeUserId ? ' active' : '');
+    item.className = 'user-item';
     item.innerHTML = `
-      <div style="display:flex; align-items:center;">
-        <div class="priority-dot" style="background:${color}; box-shadow:var(--glow-${status === 'crit' ? 'r' : status === 'warn' ? 'y' : 'g'});"></div>
-        <div>
-          <div class="user-name">${user.nome}</div>
-          <div class="user-info">${user.idade} anos • ${last ? last.bpm + ' bpm / ' + last.spo2 + '%' : '—'}</div>
-        </div>
-      </div>
-      <div style="font-size:11px; color:${color};">${status.toUpperCase()}</div>
+      <div class="user-name">${user.nome}</div>
+      <div class="user-info">${user.idade} anos • Base: ${user.baseBpm} bpm</div>
     `;
     item.addEventListener('click', () => {
+      // remove active de todos
       document.querySelectorAll('.user-item').forEach(el => el.classList.remove('active'));
       item.classList.add('active');
+
       startSimulationForUser(user);
       toast(`Monitorando: ${user.nome}`);
     });
@@ -1057,47 +900,53 @@ function renderUserList() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   INÍCIO
+   BOTÃO ÚNICO — inicia tudo (robusto a múltiplos cliques)
 ═══════════════════════════════════════════════════════════ */
 let started = false;
 
 document.getElementById('btn-start').addEventListener('click', async () => {
-  if (started) return;
+  if (started) return; /* evita dupla execução */
   started = true;
 
   splash.classList.add('out');
   hud.classList.add('on');
   canvasEl.style.display = 'block';
-  camEl.style.display = 'block';
+  camEl.style.display    = 'block';
 
+  /* inicializa Three.js apenas uma vez */
   if (!renderer) initThree();
 
   const ok = await startCamera();
   if (!ok) {
     toast('⚠ Câmera bloqueada — verifique as permissões');
-    started = false;
+    started = false; /* permite tentar de novo */
     return;
   }
 
+  /* função que dispara quando o vídeo está pronto para reprodução */
   function onReady() {
     camEl.removeEventListener('loadedmetadata', onReady);
     camEl.removeEventListener('loadeddata',     onReady);
     camEl.play().catch(() => {});
     toast('✦ Monitor ativo — sincronizando');
-    if (!pivot) loadModel();
+    if (!pivot) loadModel(); /* carrega modelo só uma vez */
 
+    // Mostra seletor de usuários
     document.getElementById('user-selector').style.display = 'block';
     renderUserList();
 
+    // Seleciona o primeiro usuário automaticamente
     if (users.length > 0) {
       startSimulationForUser(users[0]);
       document.querySelector('.user-item')?.classList.add('active');
     }
   }
 
+  /* readyState >= 1 = metadados já disponíveis (cache/reconexão) */
   if (camEl.readyState >= 1) {
     onReady();
   } else {
+    /* espera tanto loadedmetadata quanto loadeddata para garantir */
     camEl.addEventListener('loadedmetadata', onReady, { once: true });
     camEl.addEventListener('loadeddata',     onReady, { once: true });
   }
@@ -1122,56 +971,6 @@ document.getElementById('btn-reset-hud').addEventListener('click', () => {
   pivot.position.set(0, 0, modelDist);
   pivot.rotation.set(0, 0, 0);
   toast('↺ Posição resetada');
-});
-
-/* ─── Toque no coração para detalhes ─────────────────────── */
-canvasEl.addEventListener('click', () => {
-  if (!activeUser || !activeUser.history.length) return;
-  const last = activeUser.history.at(-1);
-  const status = currentSensor.getVitalStatus(last.bpm, last.spo2);
-
-  detailName.textContent = activeUser.nome;
-  detailStatus.textContent = status.overall === 'crit' ? '🔴 CRÍTICO' : status.overall === 'warn' ? '🟡 ATENÇÃO' : '🟢 NORMAL';
-  detailStatus.style.color = `var(${status.bpmColor})`;
-
-  detailBpm.textContent = last.bpm;
-  detailBpmDelta.textContent = `(Δ ${(last.bpm - activeUser.baseBpm > 0 ? '+' : '') + (last.bpm - activeUser.baseBpm).toFixed(0)})`;
-
-  detailSpo2.textContent = last.spo2.toFixed(1);
-  detailSpo2Delta.textContent = `(Δ ${(last.spo2 - activeUser.baseSpo2 > 0 ? '+' : '') + (last.spo2 - activeUser.baseSpo2).toFixed(1)})`;
-
-  const trendBpm = last.bpm > activeUser.baseBpm ? '↑' : last.bpm < activeUser.baseBpm ? '↓' : '→';
-  const trendSpo2 = last.spo2 > activeUser.baseSpo2 ? '↑' : last.spo2 < activeUser.baseSpo2 ? '↓' : '→';
-  detailTrend.textContent = `Tendência: BPM ${trendBpm} / SpO₂ ${trendSpo2}`;
-
-  detailNotes.value = activeUser.notes;
-
-  detailOverlay.style.display = 'flex';
-});
-
-/* ─── Salvar nota ─────────────────────────────────────────── */
-document.getElementById('save-note').addEventListener('click', () => {
-  if (activeUser) {
-    activeUser.notes = detailNotes.value;
-    toast('Nota salva');
-  }
-});
-
-/* ─── Toggles camadas ─────────────────────────────────────── */
-document.getElementById('toggle-numbers').addEventListener('click', (e) => {
-  showNumbers = !showNumbers;
-  e.target.classList.toggle('active');
-  updateUI(activeUser.history.at(-1));
-});
-document.getElementById('toggle-color').addEventListener('click', (e) => {
-  showColor = !showColor;
-  e.target.classList.toggle('active');
-  applyBloodColor(activeUser.history.at(-1)?.spo2);
-});
-document.getElementById('toggle-history').addEventListener('click', (e) => {
-  showHistory = !showHistory;
-  e.target.classList.toggle('active');
-  drawHistory(activeUser.history);
 });
 
 /* ─── Arraste para rotacionar ─────────────────────────────── */
@@ -1206,7 +1005,7 @@ canvasEl.addEventListener('touchmove', e=>{
   }
 },{passive:true});
 
-/* ─── Reativa câmera ao voltar ────────────────────────────── */
+/* ─── Reativa câmera ao voltar ao app (iOS/Android matam stream) ── */
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible' || !started) return;
   const tracks = camEl.srcObject ? camEl.srcObject.getVideoTracks() : [];
