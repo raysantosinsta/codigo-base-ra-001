@@ -9,8 +9,6 @@
     <title>CardioAR · Monitor Clínico</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <!-- AR.js + three.js + marker-based (hiro) -->
-    <script src="https://jeromeetienne.github.io/AR.js/aframe/build/aframe-ar.js"></script>
     <style>
       @import url("https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700;900&display=swap");
 
@@ -820,7 +818,7 @@
       </div>
     </div>
 
-    <!-- ═══ SPLASH com Hiro Marker ════════════════════════════════════════════════ -->
+    <!-- ═══ SPLASH ════════════════════════════════════════════════ -->
     <div id="splash">
       <div class="splash-bg">
         <!-- ECG decorativo -->
@@ -848,52 +846,19 @@
           </svg>
         </div>
       </div>
-      <div class="splash-inner" style="text-align:center; padding: 20px;">
+      <div class="splash-inner">
         <div class="splash-chip">
           <div class="chip-dot"></div>
           Monitor AR · Tempo Real
         </div>
         <h1 class="splash-title">Cardio<em>AR</em></h1>
-        <p class="splash-sub" style="margin: 30px 0 40px;">
-          Aponte a câmera para o marker Hiro<br />
-          para iniciar o monitoramento
+        <p class="splash-sub">
+          Oximetria · Frequência Cardíaca<br />
+          Visualização 3D em Realidade Aumentada
         </p>
-
-        <!-- Área de visualização do marker + instrução -->
-        <div style="
-          width: 260px;
-          height: 260px;
-          margin: 0 auto 30px;
-          border: 3px dashed var(--cyan);
-          border-radius: 12px;
-          overflow: hidden;
-          position: relative;
-          box-shadow: 0 0 20px rgba(0,229,255,0.3);
-        ">
-          <video id="cam-preview" autoplay playsinline muted style="width:100%; height:100%; object-fit: cover;"></video>
-          
-          <!-- overlay de instrução -->
-          <div style="
-            position: absolute;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--cyan);
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 18px;
-            background: rgba(0,0,0,0.4);
-            pointer-events: none;
-          ">
-            Posicione o marker Hiro aqui
-          </div>
-        </div>
-
-        <div style="color: #aaa; font-size: 13px; margin-top: 20px;">
-          (ou clique abaixo para iniciar sem marker)
-        </div>
-        <button id="btn-start-fallback" style="margin-top: 16px; font-size: 13px; padding: 12px 32px;">
-          Iniciar sem marker (modo teste)
+        <button id="btn-start">
+          <span>Iniciar Monitor</span>
+          <div class="pulse-ring"></div>
         </button>
       </div>
     </div>
@@ -1540,11 +1505,8 @@
           try {
             const stream = await navigator.mediaDevices.getUserMedia(c);
             camEl.srcObject = stream;
-            const camPreview = document.getElementById('cam-preview');
-            if (camPreview) camPreview.srcObject = stream;
             const isRear = JSON.stringify(c).includes("environment");
             camEl.style.transform = isRear ? "none" : "scaleX(-1)";
-            if (camPreview) camPreview.style.transform = camEl.style.transform;
             return true;
           } catch (e) {}
         }
@@ -1657,84 +1619,49 @@
 ═══════════════════════════════════════════════════════════ */
       let started = false;
 
-      // ── Marker Hiro Detection (AR.js style) ────────────────────────────────
-      let arDetected = false;
+      document
+        .getElementById("btn-start")
+        .addEventListener("click", async () => {
+          if (started) return;
+          started = true;
 
-      function startWithMarkerDetection() {
-        // Tenta iniciar a câmera imediatamente
-        startCamera().then(success => {
-          if (!success) {
-            toast("Não foi possível acessar a câmera");
+          splash.classList.add("out");
+          hud.classList.add("on");
+          canvasEl.style.display = "block";
+          camEl.style.display = "block";
+
+          if (!renderer) initThree();
+
+          const ok = await startCamera();
+          if (!ok) {
+            toast("⚠ Câmera bloqueada — verifique as permissões");
+            started = false;
             return;
           }
 
-          // Cria um container temporário para o AR.js
-          const arContainer = document.createElement('a-scene');
-          arContainer.setAttribute('embedded', '');
-          arContainer.setAttribute('arjs', 'sourceType: webcam; debugUIEnabled: false; detectionMode: mono;');
-          arContainer.style.position = 'fixed';
-          arContainer.style.inset = '0';
-          arContainer.style.zIndex = '10';
-          document.body.appendChild(arContainer);
+          function onReady() {
+            camEl.removeEventListener("loadedmetadata", onReady);
+            camEl.removeEventListener("loadeddata", onReady);
+            camEl.play().catch(() => {});
+            toast("✦ Monitor ativo — sincronizando");
+            if (!pivot) loadModel();
 
-          // Marker Hiro
-          const marker = document.createElement('a-marker');
-          marker.setAttribute('preset', 'hiro');
-          arContainer.appendChild(marker);
-
-          // Quando detectar o marker → iniciar tudo
-          marker.addEventListener('markerFound', () => {
-            if (arDetected) return;
-            arDetected = true;
-            
-            toast("Marker Hiro detectado! Iniciando CardioAR");
-            
-            // Remove o container AR temporário
-            arContainer.remove();
-            
-            // Inicia o fluxo normal do seu app
-            splash.classList.add('out');
-            hud.classList.add('on');
-            canvasEl.style.display = 'block';
-            camEl.style.display = 'block';
-
-            if (!renderer) initThree();
-            loadModel(); // ou useFallback() se preferir
-
-            document.getElementById('user-selector').style.display = 'block';
+            document.getElementById("user-selector").style.display = "block";
             renderUserList();
 
             if (users.length > 0) {
               startSimulationForUser(users[0]);
-              document.querySelector('.user-item')?.classList.add('active');
+              document.querySelector(".user-item")?.classList.add("active");
             }
-          });
+          }
+
+          if (camEl.readyState >= 1) {
+            onReady();
+          } else {
+            camEl.addEventListener("loadedmetadata", onReady, { once: true });
+            camEl.addEventListener("loadeddata", onReady, { once: true });
+          }
         });
-      }
-
-      // Inicia a detecção de marker automaticamente ao carregar a página
-      window.addEventListener('load', () => {
-        startWithMarkerDetection();
-      });
-
-      // Botão fallback (caso o usuário não tenha o marker)
-      document.getElementById('btn-start-fallback')?.addEventListener('click', () => {
-        if (started) return;
-        started = true;
-        
-        splash.classList.add('out');
-        hud.classList.add('on');
-        canvasEl.style.display = 'block';
-        camEl.style.display = 'block';
-
-        startCamera().then(() => {
-          if (!renderer) initThree();
-          loadModel();
-          document.getElementById('user-selector').style.display = 'block';
-          renderUserList();
-          if (users.length > 0) startSimulationForUser(users[0]);
-        });
-      });
 
       /* ═══════════════════════════════════════════════════════════
    CONTROLES HUD
